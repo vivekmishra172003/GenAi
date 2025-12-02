@@ -1,19 +1,47 @@
-import random
 from fastmcp import FastMCP
+import os
+import sqlite3
 
-# Creating server instance
+DB_PATH = os.path.join(os.path.dirname(__file__), "expense.db")
 
-mcp = FastMCP(name="server", port=5000)
+mcp = FastMCP("ExpenseTracker",port=5000)
 
-@mcp.tool
-def roll_dice(n: int) -> list[int]:
-    return [random.randint(1, 6) for _ in range(n)]
+def init_db():
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                amount REAL NOT NULL,
+                category TEXT NOT NULL,
+                subcategory TEXT,
+                note Text DEFAULT ''
+            )
+        """)
 
-@mcp.tool
-def add(a: int, b: int) -> int:
-    return a + b
+init_db()
+
+
+@mcp.tool()
+def add_expense(date: str, amount: float, category: str, subcategory: str = None, note: str = None) -> str:
+    """Add an expense to the database."""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute("""
+            INSERT INTO expenses (date, amount, category, subcategory, note)
+            VALUES (?, ?, ?, ?, ?)
+        """, (date, amount, category, subcategory, note))
+        expense_id = cursor.lastrowid
+    return {"status":"ok","id":expense_id}
+
+
+@mcp.tool()
+def list_expenses() -> list:
+    """List all expenses in the database."""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute("SELECT * FROM expenses")
+        return [dict(row) for row in cursor.fetchall()]
+    
 
 if __name__ == "__main__":
     mcp.run()
 
-    
